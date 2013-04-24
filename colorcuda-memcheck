@@ -1,0 +1,235 @@
+#! /usr/bin/perl -w
+
+#
+# colorcuda-memcheck
+#
+# Version: 1.0.0
+#
+# A wrapper to colorize the output of cuda-memcheck, NVIDIA's CUDA memory
+# checking tool.
+#
+# This colorcuda-memcheck wrapper is based on the colornvcc wrapper which is
+# based on the colorgcc wrapper:
+# colornvcc Version 1.0.0 by Kristi Tsukida
+# colorgcc Version: 1.3.2 by Jamie Moyers
+#
+# Requires the ANSIColor module from CPAN.
+#
+# Usage:
+#
+# In a directory that occurs in your PATH _before_ the directory
+# where cuda-memcheck lives, create a softlink to colorcuda-memcheck for
+# each cuda-memcheck you want to colorize:
+#
+#    cuda-memcheck -> colorcuda-memcheck
+#
+# That's it. When "cuda-memcheck" is invoked, colorcuda-memcheck is run instead.
+#
+# The default settings can be overridden with ~/.colorcuda-memcheckrc.
+# See the comments in the sample .colorcuda-memcheckr for more information.
+#
+# Note:
+#
+# colorcuda-memcheck will only emit color codes if:
+# 
+#    (1) Its STDOUT is a tty and
+#    (2) the value of $TERM is not listed in the "nocolor" option.
+#
+# If colorcuda-memcheck colorizes the output, the memory checker's STDERR will
+# be combined with STDOUT. Otherwise, colorcuda-memcheck just passes the output
+# from the memory checker through without modification.
+# 
+# Author: Benjamin Chretien <chretien@lirmm.fr>
+# Started: April 25, 2013
+# Licence: GNU Public License
+#
+# Credits:
+#
+#    I got the idea for this from "colornvcc" by Kristi Tsukida 
+#       who was inspired by Jamie Moyers' "colorgcc"
+#       who was inspired by a script called "color_cvs":
+#       color_cvs .03   Adrian Likins <adrian@gimp.org> <adrian@redhat.com>
+#
+# Changes:
+#
+# 1.0.0 Initial Version
+
+use Term::ANSIColor;
+use IPC::Open3;
+
+sub initDefaults
+{
+  $memcheckPaths{"cuda-memcheck"} = "/opt/cuda/bin/cuda-memcheck";
+
+  $nocolor{"dumb"} = "true";
+
+  $colors{"threadBlockIdColor"} = color("cyan");
+
+  $colors{"errorFileNameColor"} = color("bold yellow");
+  $colors{"errorMessageColor"}  = color("bold red");
+}
+
+sub loadPreferences
+{
+# Usage: loadPreferences("filename");
+
+  my($filename) = @_;
+
+  open(PREFS, "<$filename") || return;
+
+  my $memcheckVersion;
+  my $overrideMemcheckPaths = 0;
+
+  while(<PREFS>)
+  {
+    next if (m/^\#.*/);          # It's a comment.
+    next if (!m/(.*):\s*(.*)/);  # It's not of the form "foo: bar".
+
+    $option = $1;
+    $value = $2;
+
+    if ($option =~ m/\A(cuda-memcheck)\Z/)
+    {
+      $memcheckPaths{$option} = $value;
+      $overrideMemcheckPaths  = 1;
+    }
+    elsif ($option eq "memcheckVersion")
+    {
+      $memcheckVersion = $value;
+    }
+    elsif ($option eq "nocolor")
+    {
+      # The nocolor option lists terminal types, separated by
+      # spaces, not to do color on.
+      foreach $termtype (split(/\s+/, $value))
+      {
+	$nocolor{$termtype} = "true";
+      }
+    }
+    else
+    {
+      $colors{$option} = color($value);
+    }
+  }
+  close(PREFS);
+
+  # Append "-<memcheckVersion>" to user-defined memcheckPaths
+  if ($overrideMemcheckPaths && $memcheckVersion)
+  {
+    $memcheckPaths{$_} .= "-$memcheckVersion" foreach (keys %memcheckPaths);
+  }
+}
+
+#
+# Main program
+#
+
+# Set up default values for colors and memcheckers.
+initDefaults();
+
+# Read the configuration file, if there is one.
+$configFile = $ENV{"HOME"} . "/.colorcuda-memcheckrc";
+$default_configFile = "/etc/colorcuda-memcheckrc";
+if (-f $configFile)
+{
+  loadPreferences($configFile);
+}
+elsif (-f $default_configFile )
+{
+  loadPreferences($default_configFile)
+}
+
+# Figure out which memory checker to invoke based on our program name.
+$0 =~ m%.*/(.*)$%;
+$progName = $1 || $0;
+
+$memcheck = $memcheckPaths{$progName} || $memcheckPaths{"cuda-memcheck"};
+
+# Check that we don't reference self
+die "$memcheck is self-referencing"
+        if ( -l $memcheck and (stat $memcheck)[1] == (stat $0)[1] );
+
+# Get the terminal type. 
+$terminal = $ENV{"TERM"} || "dumb";
+
+# If it's in the list of terminal types not to color, or if
+# we're writing to something that's not a tty, don't do color.
+$noColor = "false";
+if (! -t STDOUT || $nocolor{$terminal})
+{
+  $noColor = "true"; 
+  #exec $memcheck, @ARGV
+  #   or die("Couldn't exec");
+}
+
+# Keep the pid of the memcheck process so we can get its return
+# code and use that as our return code.
+$memcheck_pid = open3('<&STDIN', \*MEMCHECKOUT, \*MEMCHECKOUT, $memcheck, @ARGV);
+
+# Colorize the output from memcheck.
+while(<MEMCHECKOUT>)
+{
+  # ========= "main error message"
+  if (m/^(========= )(Invalid|Program)(.*?)$/)
+  {
+    if ($noColor eq "true")
+    {
+      print("$1$2$3");
+    }
+    else
+    {
+      $message = $2.$3 || "";
+	  print("$1");
+	  print($colors{"errorMessageColor"}, "$message", color("reset"));
+    }
+    print("\n");
+  }
+  # =========     "error details"
+  elsif (m/^(=========     )(.*?)$/)
+  {
+    $header = $1 || "";
+    $message = $2 || "";
+    
+    if ($noColor eq "true")
+    {
+      print("$1$2");
+    }
+    elsif ($message =~ /(at 0x\d{8} in )(.*?)$/)
+    {
+      print("$header$1");
+	  print($colors{"errorFileNameColor"}, "$2", color("reset"));
+    }
+    elsif ($message =~ /(Address 0x\d{8} is )(out of bounds)/)
+    {
+      print("$header$1");
+	  print($colors{"errorMessageColor"}, "$2", color("reset"));
+    }
+    elsif ($message =~ /by thread \(([0-9]+),([0-9]+),([0-9]+)\) in block \(([0-9]+),([0-9]+),([0-9]+)\)/)
+    {
+      print("$header");
+      print("by thread (");
+	  print($colors{"threadBlockIdColor"}, "$1", color("reset"), ",");
+	  print($colors{"threadBlockIdColor"}, "$2", color("reset"), ",");
+	  print($colors{"threadBlockIdColor"}, "$3", color("reset"));
+      print(") in block (");
+	  print($colors{"threadBlockIdColor"}, "$4", color("reset"), ",");
+	  print($colors{"threadBlockIdColor"}, "$5", color("reset"), ",");
+	  print($colors{"threadBlockIdColor"}, "$6", color("reset"));
+      print(")");
+    }
+    else
+    {
+      print("$1$2");
+    }
+    print("\n");
+  }
+  else # Anything else.        
+  {
+    # Doesn't seem to be a warning or an error. Print normally.
+    print(color("reset"), $_);
+  }
+}
+
+# Get the return code of the memcheck and exit with that.
+waitpid($memcheck_pid, 0);
+exit ($? >> 8);

@@ -1,0 +1,41 @@
+#
+# colorcuda-memcheck configuration file
+#
+# This file should be named $HOME/.colorcuda-memcheckrc
+#
+#
+# The following groups of attributes may be combined for a given color:
+#
+# clear         black      on_black   
+# reset	        red        on_red     
+# bold	        green      on_green   
+# underline     yellow     on_yellow  
+# underscore    blue       on_blue    
+# blink	        magenta    on_magenta 
+# reverse       cyan       on_cyan    
+# concealed     white      on_white   
+#
+# For example, srcColor: bold cyan on_yellow
+#
+
+# Define the paths to the actual location of the various memory checkers.
+# (Currently, colorcuda-memcheck only understands these: cuda-memcheck)
+colorcuda-memcheck: /opt/cuda/bin/colorcuda-memcheck
+
+# Don't do color if our terminal type ($TERM) is one of these.
+# (List all terminal types on one line, seperated by whitespace.)
+nocolor: dumb
+
+# Text between ` and ' is usually source code.
+srcColor: bold cyan
+
+# Text other than a warning or error.
+introColor: reset
+
+# Errors
+errorFileNameColor: bold yellow
+errorMessageColor:  red
+
+# Thread/Block ids color
+threadBlockIdColor: cyan
+
