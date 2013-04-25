@@ -40,5 +40,6 @@ errorMessageColor:  red
 threadBlockIdColor: cyan
 
 # Detailed error messages
+printErrorDetails: true
 errorDetailsColor: reset black on_white
 

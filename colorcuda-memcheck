@@ -68,6 +68,8 @@ sub initDefaults
   $colors{"errorFileNameColor"} = color("bold yellow");
   $colors{"errorMessageColor"}  = color("bold red");
   $colors{"errorDetailsColor"}  = color("reset black on_white");
+
+  $options{"printErrorDetails"}  = "true";
 }
 
 sub loadPreferences
@@ -106,6 +108,10 @@ sub loadPreferences
       {
         $nocolor{$termtype} = "true";
       }
+    }
+    elsif ($option eq "printErrorDetails")
+    {
+      $options{"printErrorDetails"} = $value;
     }
     else
     {
@@ -267,11 +273,14 @@ while(<MEMCHECKOUT>)
       $message = $2.$3.$4 || "";
       print("$1");
       print($colors{"errorMessageColor"}, "$message", color("reset"));
-      $err_detailed_msg = getDetailedErrorMessage($3);
-      if ($err_detailed_msg ne "")
+      if ($options{"printErrorDetails"} eq "true")
       {
-        print("\n");
-        print(make80color("$err_detailed_msg", $colors{"errorDetailsColor"}));
+        $err_detailed_msg = getDetailedErrorMessage($3);
+        if ($err_detailed_msg ne "")
+        {
+          print("\n");
+          print(make80color("$err_detailed_msg", $colors{"errorDetailsColor"}));
+        }
       }
     }
     print("\n");
