@@ -39,3 +39,6 @@ errorMessageColor:  red
 # Thread/Block ids color
 threadBlockIdColor: cyan
 
+# Detailed error messages
+errorDetailsColor: reset black on_white
+
