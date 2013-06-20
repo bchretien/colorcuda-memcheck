@@ -20,7 +20,7 @@
 
 # Define the paths to the actual location of the various memory checkers.
 # (Currently, colorcuda-memcheck only understands these: cuda-memcheck)
-colorcuda-memcheck: /opt/cuda/bin/colorcuda-memcheck
+cuda-memcheck: /opt/cuda/bin/cuda-memcheck
 
 # Don't do color if our terminal type ($TERM) is one of these.
 # (List all terminal types on one line, seperated by whitespace.)
